@@ -6,11 +6,25 @@
 
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
+The system is built around three core actions a user performs:
+
+1. **Enter owner and pet info** — the user provides their name, their pet's name, and the pet's species. This grounds every plan in a specific owner–pet pair and maps to `Owner` and `Pet` classes that hold basic identity and preference data.
+
+2. **Add and manage tasks** — the user creates care tasks by specifying a title, a duration in minutes, and a priority level (low, medium, or high). Tasks are the raw input to the scheduler and map to a `Task` class that holds at minimum those three attributes.
+
+3. **Generate a daily schedule** — the user triggers the scheduler, which orders tasks by priority and available time and returns a time-slotted plan with reasoning. This maps to a `DailyPlan` class whose main responsibility is choosing, ordering, and annotating tasks for the day.
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+After an AI-assisted review of the skeleton, four changes were made:
+
+1. **`Priority` enum instead of a plain string** — `Task.priority` was originally a free-form `str`. Any typo or casing difference (`"High"` vs `"high"`) would silently produce wrong rankings. Replacing it with a `Priority(Enum)` with `LOW`, `MEDIUM`, and `HIGH` members means invalid values are caught at construction time, not buried in `priority_rank()` logic.
+
+2. **`Pet.owner` back-reference** — the original design only linked `Owner → Pet`, with no way to navigate the other direction. Adding an optional `owner` field to `Pet` (with `repr=False` to prevent infinite loops) completes the relationship so a `Pet` always knows who it belongs to.
+
+3. **`Scheduler` takes a `Pet` instead of a raw task list** — the original `Scheduler(tasks, available_time)` relied on the caller to pass the correct task list for the right pet, with no enforced connection. Changing it to `Scheduler(pet, available_time)` makes the source of tasks explicit and ties the scheduler to a specific pet.
+
+4. **`DailyPlan` merged two parallel lists into one** — `scheduled_tasks` and `time_slots` were separate lists that had to stay the same length and order. If either was modified independently, behavior would be undefined. Replacing them with a single `slots` list — where each entry is a `{"task": Task, "time_slot": str}` dict — keeps every task paired with its slot by construction.
 
 ---
 
