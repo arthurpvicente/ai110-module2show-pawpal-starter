@@ -1,5 +1,5 @@
 import streamlit as st
-from pawpal_system import Owner, Pet, Priority, Scheduler, Task
+from pawpal_system import Owner, Pet, Priority, Scheduler, Task, detect_conflicts
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
@@ -8,35 +8,11 @@ st.title("🐾 PawPal+")
 if "owner" not in st.session_state:
     st.session_state.owner = Owner(name="Jordan")
 
-st.markdown(
-    """
-Welcome to the PawPal+ starter app.
-
-This file is intentionally thin. It gives you a working Streamlit app so you can start quickly,
-but **it does not implement the project logic**. Your job is to design the system and build it.
-
-Use this app as your interactive demo once your backend classes/functions exist.
-"""
-)
-
-with st.expander("Scenario", expanded=True):
+with st.expander("Scenario", expanded=False):
     st.markdown(
         """
 **PawPal+** is a pet care planning assistant. It helps a pet owner plan care tasks
 for their pet(s) based on constraints like time, priority, and preferences.
-
-You will design and implement the scheduling logic and connect it to this Streamlit UI.
-"""
-    )
-
-with st.expander("What you need to build", expanded=True):
-    st.markdown(
-        """
-At minimum, your system should:
-- Represent pet care tasks (what needs to happen, how long it takes, priority)
-- Represent the pet and the owner (basic info and preferences)
-- Build a plan/schedule for a day that chooses and orders tasks based on constraints
-- Explain the plan (why each task was chosen and when it happens)
 """
     )
 
@@ -85,27 +61,58 @@ if owner_pets:
             duration = st.number_input("Duration (minutes)", min_value=1, max_value=240, value=20)
         with col3:
             priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
+
+        col4, col5 = st.columns(2)
+        with col4:
+            preferred_start = st.text_input("Preferred start (HH:MM, optional)", value="")
+        with col5:
+            recurrence = st.selectbox("Recurrence", ["none", "daily", "weekly"])
+
         add_task = st.form_submit_button("Add task")
 
     if add_task:
+        start = preferred_start.strip() if preferred_start.strip() else None
+        rec = recurrence if recurrence != "none" else None
         selected_pet.add_task(
-            Task(title=task_title, duration=int(duration), priority=Priority(priority))
+            Task(
+                title=task_title,
+                duration=int(duration),
+                priority=Priority(priority),
+                preferred_start=start,
+                recurrence=rec,
+            )
         )
-        st.success(f"Added {task_title} for {selected_pet.name}.")
+        st.success(f"Added '{task_title}' for {selected_pet.name}.")
 
     if selected_pet.get_tasks():
-        st.write(f"Tasks for {selected_pet.name}:")
+        sort_by_priority = st.checkbox("Sort tasks by priority (HIGH → LOW)")
+        if sort_by_priority:
+            scheduler_preview = Scheduler(pet=selected_pet, available_time=9999)
+            tasks_to_show = scheduler_preview.sort_by_priority()
+        else:
+            tasks_to_show = selected_pet.get_tasks()
+
+        st.write(f"Tasks for **{selected_pet.name}**:")
         st.table(
             [
                 {
                     "title": task.title,
-                    "duration_minutes": task.duration,
+                    "duration (min)": task.duration,
                     "priority": task.priority.value,
+                    "preferred start": task.preferred_start or "—",
+                    "recurrence": task.recurrence or "none",
                     "completed": task.completed,
                 }
-                for task in selected_pet.get_tasks()
+                for task in tasks_to_show
             ]
         )
+
+        # Show same-pet conflict warnings immediately
+        conflict_checker = Scheduler(pet=selected_pet, available_time=9999)
+        conflicts = conflict_checker.check_conflicts()
+        if conflicts:
+            for msg in conflicts:
+                st.warning(f"⚠️ Conflict detected: {msg}")
     else:
         st.info(f"No tasks yet for {selected_pet.name}.")
 else:
@@ -124,21 +131,50 @@ if owner_pets:
     if st.button("Generate schedule"):
         scheduler = Scheduler(pet=schedule_pet, available_time=int(available_time))
         plan = scheduler.generate()
-        st.write(plan.summary())
+
+        st.info(f"📋 {plan.summary()}")
 
         if plan.slots:
+            scheduled_titles = {entry["task"].title for entry in plan.slots}
+            all_tasks = schedule_pet.get_tasks()
+            skipped = [t for t in all_tasks if not t.completed and t.title not in scheduled_titles]
+
             st.table(
                 [
                     {
                         "time": entry["time_slot"],
                         "task": entry["task"].title,
-                        "duration_minutes": entry["task"].duration,
+                        "duration (min)": entry["task"].duration,
                         "priority": entry["task"].priority.value,
                     }
                     for entry in plan.slots
                 ]
             )
+
+            if skipped:
+                st.warning(
+                    "⏭️ These tasks didn't fit in the available time: "
+                    + ", ".join(f"**{t.title}**" for t in skipped)
+                )
         else:
             st.info("No tasks fit into the available time.")
+
+        # Cross-pet conflict detection
+        if len(owner_pets) > 1:
+            all_plans = []
+            for pet in owner_pets:
+                s = Scheduler(pet=pet, available_time=int(available_time))
+                all_plans.append(s.generate())
+
+            cross_conflicts = detect_conflicts(all_plans)
+            with st.expander("🐾 Cross-pet conflict check", expanded=True):
+                if cross_conflicts:
+                    for c in cross_conflicts:
+                        st.error(
+                            f"**{c['pet_a']}** ({c['task_a']} {c['overlap_start']}–{c['overlap_end']}) "
+                            f"overlaps **{c['pet_b']}** ({c['task_b']} {c['overlap_start']}–{c['overlap_end']})"
+                        )
+                else:
+                    st.success("No scheduling conflicts across pets!")
 else:
     st.info("Add a pet and task before generating a schedule.")
