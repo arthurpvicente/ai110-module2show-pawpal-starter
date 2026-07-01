@@ -70,19 +70,55 @@ Paste a sample of your app's CLI or Streamlit output here so a reader can see wh
 
 ## 🧪 Testing PawPal+
 
+Run the test suite from the project root:
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest tests/test_pawpal.py -v
 ```
 
-Sample test output:
+### What the tests cover
+
+| Test | What it verifies |
+|------|-----------------|
+| `test_mark_complete_changes_status` | `Task.mark_complete()` flips `completed` to `True` |
+| `test_add_task_increases_count` | `Pet.add_task()` appends to the task list |
+| `test_sort_by_priority_happy_path` | `Scheduler.sort_by_priority()` returns HIGH → MEDIUM → LOW |
+| `test_filter_feasible_respects_time_budget` | Greedy selection stays within `available_time` |
+| `test_filter_feasible_zero_time_returns_empty` | No tasks scheduled when time budget is 0 |
+| `test_check_conflicts_detects_same_start_time` | Two tasks at the same time generate a conflict warning |
+| `test_check_conflicts_no_conflict_with_one_task` | Single task produces no conflicts |
+| `test_mark_task_complete_recurring_creates_new_task` | Completing a `recurrence="daily"` task creates a new copy |
+| `test_mark_task_complete_non_recurring_returns_none` | Non-recurring task completion returns `None` |
+| `test_owner_get_tasks_aggregates_across_pets` | `Owner.get_tasks()` collects tasks from all pets |
+| `test_owner_get_tasks_filters_completed` | `completed=False` excludes finished tasks |
+| `test_owner_get_tasks_no_pets_returns_empty` | Owner with no pets returns an empty list |
+
+### Sample test output
 
 ```
-# Paste your pytest output here
+collected 12 items
+
+tests/test_pawpal.py::test_mark_complete_changes_status PASSED           [  8%]
+tests/test_pawpal.py::test_add_task_increases_count PASSED               [ 16%]
+tests/test_pawpal.py::test_sort_by_priority_happy_path PASSED            [ 25%]
+tests/test_pawpal.py::test_filter_feasible_respects_time_budget PASSED   [ 33%]
+tests/test_pawpal.py::test_filter_feasible_zero_time_returns_empty PASSED [ 41%]
+tests/test_pawpal.py::test_check_conflicts_detects_same_start_time PASSED [ 50%]
+tests/test_pawpal.py::test_check_conflicts_no_conflict_with_one_task PASSED [ 58%]
+tests/test_pawpal.py::test_mark_task_complete_recurring_creates_new_task PASSED [ 66%]
+tests/test_pawpal.py::test_mark_task_complete_non_recurring_returns_none PASSED [ 75%]
+tests/test_pawpal.py::test_owner_get_tasks_aggregates_across_pets PASSED [ 83%]
+tests/test_pawpal.py::test_owner_get_tasks_filters_completed PASSED      [ 91%]
+tests/test_pawpal.py::test_owner_get_tasks_no_pets_returns_empty PASSED  [100%]
+
+============================== 12 passed in 0.01s ==============================
 ```
+
+### Confidence Level
+
+⭐⭐⭐⭐ (4/5)
+
+The core scheduling behaviors — priority sorting, time filtering, conflict detection, and recurring tasks — are all tested and passing. The main gap is that the Streamlit UI layer and the `generate()` / `detect_conflicts()` end-to-end flow are not covered by automated tests, so full system behavior under real user input remains manually verified only.
 
 ## 📐 Smarter Scheduling
 
