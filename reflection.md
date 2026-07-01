@@ -39,6 +39,11 @@ After an AI-assisted review of the skeleton, four changes were made:
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
+**High-priority tasks always go first:**
+The scheduler always picks the most important tasks first. If those fill up the day, lower-priority tasks get skipped entirely — even if a different combination would fit more tasks into the same time window. This is a reasonable choice for pet care because feeding and walking a dog are more important than a bath, and the goal is to always get the critical tasks done, not to maximize the number of tasks completed.
+
+**Preferred start times are a suggestion, not a guarantee:**
+If you tell the scheduler "start Grooming at 08:10," it will try to place it there, but if an earlier task runs over, Grooming just slides later to fill the gap. The scheduler never leaves empty time waiting for a preferred start. This makes the schedule compact and simple to generate, but it means preferred times are treated as hints rather than hard appointments.
 
 ---
 

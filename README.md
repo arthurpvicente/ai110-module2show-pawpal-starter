@@ -86,14 +86,16 @@ Sample test output:
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
-
-| Feature | Method(s) | Notes |
-|---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Feature | Method(s) | Behavior |
+|---------|-----------|----------|
+| Sort by time | `Scheduler.sort_by_time()` | Tasks with a `preferred_start` (HH:MM) are placed first in time order; unanchored tasks follow sorted by priority. |
+| Sort by priority | `Scheduler.sort_by_priority()` | Returns all tasks ranked HIGH → MEDIUM → LOW; used internally by `filter_feasible()`. |
+| Filter by feasibility | `Scheduler.filter_feasible()` | Greedy selection — adds tasks in priority order until the available time budget is exhausted; skips tasks that no longer fit. |
+| Filter by pet / status | `Owner.get_tasks(pet_name=, completed=)` | Returns tasks across all pets, optionally narrowed to a specific pet name and/or completion status (`True`/`False`). |
+| Filter by status (per pet) | `Pet.get_tasks(completed=)` | Returns a single pet's tasks filtered by completion status; passing no argument returns all tasks. |
+| Same-pet conflict detection | `Scheduler.check_conflicts()` | Before scheduling, compares `preferred_start` windows of tasks on the same pet. Returns a list of warning strings for any overlapping pairs — does not crash. |
+| Cross-pet conflict detection | `detect_conflicts(plans)` | After scheduling, compares assigned `time_slot` windows across different pets. Returns conflict dicts with pet names, task names, and overlap start/end times. |
+| Recurring task rescheduling | `Scheduler.mark_task_complete(task)` | Marks a task complete and, if `recurrence` is `"daily"` or `"weekly"`, automatically creates the next occurrence with a `due_date` of today + 1 day or today + 7 days using `timedelta`. |
 
 ## 📸 Demo Walkthrough
 
