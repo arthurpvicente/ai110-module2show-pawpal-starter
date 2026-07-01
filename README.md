@@ -133,14 +133,118 @@ The core scheduling behaviors — priority sorting, time filtering, conflict det
 | Cross-pet conflict detection | `detect_conflicts(plans)` | After scheduling, compares assigned `time_slot` windows across different pets. Returns conflict dicts with pet names, task names, and overlap start/end times. |
 | Recurring task rescheduling | `Scheduler.mark_task_complete(task)` | Marks a task complete and, if `recurrence` is `"daily"` or `"weekly"`, automatically creates the next occurrence with a `due_date` of today + 1 day or today + 7 days using `timedelta`. |
 
+## ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| **Owner & pet management** | Create an owner profile and add multiple pets (dog, cat, or other). Each pet holds its own task list. |
+| **Task creation** | Add tasks with a title, duration (minutes), priority (HIGH / MEDIUM / LOW), optional preferred start time, and optional daily or weekly recurrence. |
+| **Priority-based sorting** | `Scheduler.sort_by_priority()` ranks all tasks HIGH → MEDIUM → LOW so the most important care always gets considered first. |
+| **Time-anchored sorting** | `Scheduler.sort_by_time()` places tasks with a `preferred_start` (HH:MM) in chronological order; unanchored tasks follow, sorted by priority. |
+| **Greedy feasibility filtering** | `Scheduler.filter_feasible()` iterates tasks in priority order and keeps adding them until the owner's available-time budget is exhausted — guaranteeing the schedule never over-commits. |
+| **Same-pet conflict warnings** | `Scheduler.check_conflicts()` compares `preferred_start` windows for tasks on the same pet and reports any overlapping pairs before the schedule is built. |
+| **Cross-pet conflict detection** | `detect_conflicts(plans)` compares assigned `time_slot` windows across different pets and returns structured conflict dicts with overlap start/end times. |
+| **Daily recurrence** | Completing a task marked `recurrence="daily"` automatically creates the next occurrence due tomorrow via `timedelta`. |
+| **Weekly recurrence** | Same flow for `recurrence="weekly"` — next occurrence is due in 7 days. |
+| **Schedule generation & display** | `Scheduler.generate()` produces a `DailyPlan` with per-pet timeline rows, a progress bar showing minutes used vs. available, and a count of skipped tasks. |
+| **Streamlit UI** | A browser-based form interface lets users manage owners, pets, and tasks, then generate and view a formatted daily plan with conflict warnings — no CLI required. |
+
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+### Main UI features
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+The Streamlit app (`app.py`) has four sections:
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+- **Owner** — set or update the owner's name.
+- **Pets** — add pets by name and species; a live table shows each pet's task count.
+- **Tasks** — pick a pet, then fill in a task form (title, duration, priority, preferred start, recurrence) and submit.
+- **Generate Schedule** — set the available-time budget per pet and click "Generate" to see the daily plan, conflict warnings, and recurring-task status.
+
+### Example workflow
+
+1. Open the app (`streamlit run app.py`) and enter your name as the owner.
+2. Add two pets: **Buddy** (Dog) and **Luna** (Cat).
+3. For Buddy, add:
+   - "Morning Walk" — 30 min, HIGH priority, preferred start 08:00
+   - "Vet Check" — 20 min, HIGH priority, preferred start 08:15 *(intentional overlap)*
+   - "Feeding" — 10 min, HIGH priority, daily recurrence
+   - "Bath Time" — 25 min, MEDIUM priority
+4. For Luna, add:
+   - "Grooming" — 20 min, MEDIUM priority, preferred start 08:10
+   - "Playtime" — 15 min, LOW priority, weekly recurrence
+5. Set Buddy's time budget to **90 min** and Luna's to **30 min**, then click **Generate Schedule**.
+6. The app displays Buddy's plan sorted by start time, flags the 08:00–08:15 overlap as a conflict warning, and shows Luna's plan with Playtime omitted (budget exhausted after Grooming).
+7. Completing "Feeding" from the task list automatically schedules the next feeding for tomorrow.
+
+### Key scheduler behaviors
+
+- **Sorting by time**: Tasks with a `preferred_start` appear first in chronological order; tasks without one follow in priority order.
+- **Conflict warnings**: The same-pet checker catches overlapping `preferred_start` windows (e.g., Morning Walk 08:00–08:30 vs. Vet Check 08:15–08:35) and surfaces them as human-readable warnings before the schedule is committed.
+- **Greedy budget enforcement**: Tasks are evaluated highest-priority-first; any task that would exceed the remaining time budget is skipped and counted in the summary.
+- **Daily recurrence**: Marking "Feeding" complete creates a new "Feeding" task due the next day, keeping the daily routine intact without manual re-entry.
+
+### Sample CLI output
+
+```
+==============================================
+  TODAY'S SCHEDULE  —  Arthur
+==============================================
+
+  Raw task order for Buddy (as added):
+    [no pref]  Bath Time
+    [no pref]  Feeding
+    [08:00]  Morning Walk
+    [08:15]  Vet Check
+
+  Same-pet conflict warnings:
+    Conflict: Morning Walk (08:00, 30 min) overlaps Vet Check (08:15, 20 min)
+
+  After sort_by_time():
+    [08:00]  Morning Walk
+    [08:15]  Vet Check
+    [no pref]  Feeding
+    [no pref]  Bath Time
+
+  Incomplete tasks for Buddy (completed=False):
+    - Bath Time
+    - Feeding
+    - Morning Walk
+    - Vet Check
+
+  Recurring task rescheduled: 'Feeding' due 2026-07-02
+
+  Incomplete tasks after completing Feeding:
+    - Bath Time
+    - Morning Walk
+    - Vet Check
+    - Feeding  (due 2026-07-02)
+
+==============================================
+  FULL DAILY PLAN
+==============================================
+
+  Buddy  (Dog)
+  -----------------------------------------------
+  08:00   Morning Walk            30 min  [HIGH]
+  08:15   Vet Check               20 min  [HIGH]
+  no pref Feeding                 10 min  [HIGH]
+  no pref Bath Time               25 min  [MEDIUM]
+  -----------------------------------------------
+  Time used: 85 / 90 min  |  0 task(s) skipped
+  Schedule generated at: 08:00
+
+  Luna  (Cat)
+  -----------------------------------------------
+  08:10   Grooming                20 min  [MEDIUM]
+  -----------------------------------------------
+  Time used: 20 / 30 min  |  1 task(s) skipped
+
+  Checking for scheduling conflicts...
+  ! Conflict: Buddy/Morning Walk overlaps Buddy/Vet Check (08:15--08:30)
+
+  Recurring tasks across all pets:
+    Buddy: Feeding (daily)
+    Luna: Playtime (weekly)
+
+==============================================
+```
